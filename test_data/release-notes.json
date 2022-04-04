@@ -1,0 +1,11 @@
+{
+  "name": "1.7.9",
+  "notes": "Released a new version: 1.7.9",
+  "pub_date": "2022-04-01T13:06:47.108227",
+  "platforms": {
+    "win64": {
+      "url": "https://random-app.fra1.digitaloceanspaces.com/release/1.7.9/random-app_1.7.9_x64_en-US.msi.zip",
+      "signature": ""
+    }
+  }
+}

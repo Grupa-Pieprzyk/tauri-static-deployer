@@ -1,0 +1,76 @@
+{
+    "package": {
+        "productName": "random-app",
+        "version": "1.7.9"
+    },
+    "build": {
+        "distDir": "../build",
+        "devPath": "http://localhost:3000",
+        "beforeDevCommand": "",
+        "beforeBuildCommand": ""
+    },
+    "tauri": {
+        "bundle": {
+            "active": true,
+            "targets": "all",
+            "identifier": "com.random-company.random-app",
+            "icon": [
+                "icons/32x32.png",
+                "icons/128x128.png",
+                "icons/128x128@2x.png",
+                "icons/icon.icns",
+                "icons/icon.ico"
+            ],
+            "resources": [],
+            "externalBin": [],
+            "copyright": "random-company",
+            "category": "Games",
+            "shortDescription": "random-app",
+            "longDescription": "random-app",
+            "deb": {
+                "depends": [],
+                "useBootstrapper": false
+            },
+            "macOS": {
+                "frameworks": [],
+                "minimumSystemVersion": "",
+                "useBootstrapper": false,
+                "exceptionDomain": "",
+                "signingIdentity": null,
+                "entitlements": null
+            },
+            "windows": {
+                "certificateThumbprint": "5CBD4066862D734BE5A82CF1D5BB3D05352F1A27",
+                "digestAlgorithm": "sha256",
+                "timestampUrl": "http://timestamp.sectigo.com",
+                "wix": {
+                    "enableElevatedUpdateTask": false
+                }
+            }
+        },
+        "updater": {
+            "active": true,
+            "endpoints": [
+                "https://random-app.fra1.digitaloceanspaces.com/release/release-notes.json"
+            ],
+            "dialog": false,
+            "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzawduIHB1YmxpYyBrZXk6IEM4NjE4QTdCQTcxNDMyQQpSV1FxUTNHNnB4aUdETFdiL0ZON3EwWDFaL0x1dmF0RW4rTW9XZE1PK3JXeVMzZGEvMW9MOG9NTgo="
+        },
+        "allowlist": {
+            "all": true
+        },
+        "windows": [
+            {
+                "title": "random-app",
+                "width": 1280,
+                "height": 720,
+                "resizable": false,
+                "fullscreen": false,
+                "decorations": false
+            }
+        ],
+        "security": {
+            "csp": "default-src blob: source: data: filesystem: ws: http: https: 'unsafe-eval' 'unsafe-inline' 'self' img-src: 'self'"
+        }
+    }
+}
