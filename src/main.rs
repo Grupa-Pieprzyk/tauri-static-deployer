@@ -424,7 +424,20 @@ pub mod namespacing {
     }
 }
 const DEFAULT_TAURI_CONF_JSON_PATH: &str = "./src-tauri/tauri.conf.json";
-const DEFAULT_RELEASE_ASSETS_DIR_PATH: &str = "./src-tauri/target/release/bundle/";
+
+/// should return "./src-tauri/target/release/bundle/"
+fn release_assets_path(target: &RustTarget) -> Result<PathBuf> {
+    let base = PathBuf::from_str("./src-tauri")
+        .context("bad base path")?
+        .join("target");
+    let for_target = base.join(serde_variant::to_variant_name(target).context("bad variant?")?);
+    let target_base = if for_target.exists() {
+        for_target
+    } else {
+        base.join("release")
+    };
+    Ok(target_base.join("bundle"))
+}
 
 #[derive(Subcommand, Debug)]
 enum Command {
@@ -433,8 +446,8 @@ enum Command {
     /// this builds and publishes the release according to s3 config
     /// NOE: this stage also cleans up release artifacts after uploading them - by default rust-cache action saves them all which makes the cache grow out of control
     Upload {
-        #[clap(short, long, default_value_t = String::from(DEFAULT_RELEASE_ASSETS_DIR_PATH), value_name = "DIR")]
-        release_dir: String,
+        #[clap(short, long, value_name = "DIR")]
+        release_dir: Option<PathBuf>,
     },
 }
 
@@ -492,8 +505,11 @@ async fn main() -> Result<()> {
             ));
         }
         Command::Upload { release_dir } => {
-            let release_dir =
-                PathBuf::from_str(&release_dir).context("parsing tauri.conf.json path")?;
+            let release_dir = match release_dir {
+                Some(r) => r,
+                None => release_assets_path(&target).context("failed to derive a release path")?,
+            };
+
             let files = walkdir::WalkDir::new(release_dir)
                 .into_iter()
                 .collect::<Result<Vec<_>, _>>()
