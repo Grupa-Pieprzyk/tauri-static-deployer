@@ -443,9 +443,12 @@ enum Command {
 #[clap(author, version, about, long_about = None)]
 #[clap(propagate_version = true)]
 struct Args {
-    #[clap(default_value_t = String::from(DEFAULT_TAURI_CONF_JSON_PATH), value_name = "FILE")]
+    #[clap(long, default_value_t = String::from(DEFAULT_TAURI_CONF_JSON_PATH), value_name = "FILE")]
     /// path to tauri.conf.json
-    path: String,
+    tauri_conf_json_path: String,
+    #[clap(long)]
+    /// override rust target
+    rust_target: Option<RustTarget>,
     #[clap(subcommand)]
     command: Command,
 }
@@ -455,7 +458,7 @@ async fn main() -> Result<()> {
     dotenv::dotenv().ok();
     pretty_env_logger::try_init().ok();
     let args = Args::parse();
-    let path = args.path;
+    let path = args.tauri_conf_json_path;
     // tauri.conf.json
     let path = PathBuf::from_str(&path).context("parsing tauri.conf.json path")?;
     let mut tauri_conf_json: TauriConfJson = std::fs::read_to_string(&path)
@@ -463,7 +466,15 @@ async fn main() -> Result<()> {
         .and_then(|content| serde_json::from_str(&content).context("parsing tauri.conf.json"))?;
     // metadata
     let branch = metadata::current_branch().context("getting branch name")?;
-    let target = metadata::current_target().context("getting target")?;
+    let target = match args.rust_target {
+        Some(t) => t,
+        None => {
+            let target =
+                metadata::current_target().context("getting rust from environment target")?;
+            log::warn!("target not set, using {target:?}");
+            target
+        }
+    };
     let release_platform = target
         .to_release_platform()
         .context("getting release platform from target")?;
