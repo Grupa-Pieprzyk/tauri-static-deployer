@@ -16,13 +16,17 @@ in order for this to work you need to keep updating your `package.version` key i
 add this to your github acition .yml file
 
 ```yml
+- name: clone deployer script
+  run: git clone https://github.com/Grupa-Pieprzyk/tauri-static-deployer ../tauri-static-deployer
+
 - name: rust cache for deployer script
   uses: Swatinem/rust-cache@v1
   with:
     working-directory: ../tauri-static-deployer
+    key: ${{ matrix.settings.target }}
+
 - name: install deployer script
   run: |
-    git clone https://github.com/Grupa-Pieprzyk/tauri-static-deployer ../tauri-static-deployer
     cd ../tauri-static-deployer
     cargo build --release
 - name: create the static release - update tauri.conf.json
