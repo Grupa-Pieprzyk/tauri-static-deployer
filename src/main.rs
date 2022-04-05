@@ -424,6 +424,7 @@ enum Command {
     /// must be run before tauri action, tauri.conf.json needs to be patched in order for updater to reference the correct S3 release manifest file.
     Patch,
     /// this builds and publishes the release according to s3 config
+    /// NOE: this stage also cleans up release artifacts after uploading them - by default rust-cache action saves them all which makes the cache grow out of control
     Upload {
         #[clap(short, long, default_value_t = String::from(DEFAULT_RELEASE_ASSETS_DIR_PATH), value_name = "DIR")]
         release_dir: String,
@@ -485,7 +486,7 @@ async fn main() -> Result<()> {
                 .collect::<Result<Vec<_>, _>>()
                 .context("getting absolute paths")?;
             let with_keys = files
-                .into_iter()
+                .iter()
                 .map(|binary_file_path| {
                     derive_binary_file_s3_key(
                         &tauri_conf_json,
@@ -505,6 +506,16 @@ async fn main() -> Result<()> {
             let urls = futures::future::try_join_all(tasks)
                 .await
                 .context("uploading all binary files")?;
+            log::info!(
+                "all files uploaded, cleaning up to prevent cache from growing out of control"
+            );
+            files
+                .into_iter()
+                .map(|path| {
+                    std::fs::remove_file(&path).context(format!("cleaning up [{}]", path.display()))
+                })
+                .collect::<Result<Vec<_>, _>>()
+                .context("cleaning up cache")?;
             let binary_url = urls
                 .iter()
                 .find(|url| url.ends_with(".zip"))
