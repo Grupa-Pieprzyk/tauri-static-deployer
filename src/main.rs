@@ -296,7 +296,8 @@ pub mod metadata {
                 .trim_end_matches("\n")
                 .trim_end_matches("\r")
                 .trim_end_matches("\n")
-                .to_string()),
+                .to_string()
+                .replace("\r", "")),
             Err(e) => Err(anyhow::anyhow!(
                 "failed to decode windows output :: {:?}",
                 e
@@ -315,7 +316,13 @@ pub mod metadata {
             .context("running command to get current target")?;
 
         let text = decode_command_output(&out.stdout).context("bad encoding")?;
-        let (channel, target) = text.split_once('-').context("bad format for target")?;
+        let default_target = text
+            .lines()
+            .find(|line| line.contains("default"))
+            .context("no default target found")?;
+        let (channel, target) = default_target
+            .split_once('-')
+            .context("bad format for target")?;
         let (target, _) = target.split_once(' ').context("bad format for target")?;
         let _channel: RustChannel = channel.parse()?;
         let target = target.parse()?;
