@@ -12,6 +12,7 @@ modifies the tauri-action workflow to allow for release-channel-per-branch model
 ### usage
 
 in order for this to work you need to keep updating your `package.version` key in `tauri.conf.json`
+
 add this to your github acition .yml file
 
 ```yml
