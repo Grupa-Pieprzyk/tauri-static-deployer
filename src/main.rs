@@ -349,14 +349,6 @@ pub mod metadata {
 }
 pub mod namespacing {
     use super::*;
-    // pub fn release_prefix(branch: &str, target: RustTarget) -> Result<String> {
-    //     Ok(format!(
-    //         "{branch}/{}",
-    //         serde_variant::to_variant_name(&target.to_release_platform()?)
-    //             .expect("this will always serialize")
-    //     ))
-    // }
-
     pub fn derive_release_base_key(branch_name: &str, target: &RustTarget) -> String {
         format!(
             "{}/{}",
@@ -378,9 +370,6 @@ pub mod namespacing {
         target: &RustTarget,
         s3_config: &S3Config,
     ) -> String {
-        // let arch = target.to_release_platform();
-        // let version = &tauri_conf_json.package.version;
-        // let product_name = &tauri_conf_json.package.product_name;
         format!(
             "{}/{}",
             s3_handler::handle_s3::s3_url_prefix(s3_config),
