@@ -448,7 +448,7 @@ struct Args {
     tauri_conf_json_path: String,
     #[clap(long)]
     /// override rust target
-    rust_target: Option<RustTarget>,
+    target: Option<RustTarget>,
     #[clap(subcommand)]
     command: Command,
 }
@@ -466,7 +466,7 @@ async fn main() -> Result<()> {
         .and_then(|content| serde_json::from_str(&content).context("parsing tauri.conf.json"))?;
     // metadata
     let branch = metadata::current_branch().context("getting branch name")?;
-    let target = match args.rust_target {
+    let target = match args.target {
         Some(t) => t,
         None => {
             let target =
