@@ -1,16 +1,36 @@
-use std::{path::PathBuf, str::FromStr};
+use std::{
+    path::PathBuf,
+    str::FromStr,
+};
 
-use anyhow::{bail, Context, Result};
-use clap::{Parser, Subcommand};
+use anyhow::{
+    bail,
+    Context,
+    Result,
+};
+use clap::{
+    Parser,
+    Subcommand,
+};
 use enum_iterator::IntoEnumIterator;
 use itertools::Itertools;
+use release_notes_file::{
+    ReleasePlatformV1,
+    ReleasePlatformV2,
+};
 use s3_handler::S3Config;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::path::Path;
 use tauri_conf_json::TauriConfJson;
 
 use crate::{
-    namespacing::{derive_binary_file_s3_key, derive_release_file_s3_key},
+    namespacing::{
+        derive_binary_file_s3_key,
+        derive_release_file_s3_key,
+    },
     release_notes_file::RemoteRelease,
 };
 
@@ -33,11 +53,20 @@ pub enum RustTarget {
 }
 
 impl RustTarget {
-    pub fn to_release_platform(&self) -> Result<release_notes_file::ReleasePlatform> {
+    pub fn to_release_platform(&self) -> Result<Vec<release_notes_file::ReleasePlatform>> {
         match self {
-            RustTarget::Win32 => Ok(release_notes_file::ReleasePlatform::Win32),
-            RustTarget::Win64 => Ok(release_notes_file::ReleasePlatform::Win64),
-            RustTarget::Linux64 => Ok(release_notes_file::ReleasePlatform::Linux),
+            RustTarget::Win32 => Ok(vec![
+                release_notes_file::ReleasePlatform::V1(ReleasePlatformV1::Win32),
+                release_notes_file::ReleasePlatform::V2(ReleasePlatformV2::Win32),
+            ]),
+            RustTarget::Win64 => Ok(vec![
+                release_notes_file::ReleasePlatform::V1(ReleasePlatformV1::Win64),
+                release_notes_file::ReleasePlatform::V2(ReleasePlatformV2::Win64),
+            ]),
+            RustTarget::Linux64 => Ok(vec![
+                release_notes_file::ReleasePlatform::V1(ReleasePlatformV1::Linux),
+                release_notes_file::ReleasePlatform::V2(ReleasePlatformV2::Linux),
+            ]),
         }
     }
 }
@@ -83,7 +112,7 @@ mod release_notes_file {
     use super::*;
 
     #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    pub enum ReleasePlatform {
+    pub enum ReleasePlatformV1 {
         #[serde(rename = "win64")]
         Win64,
         #[serde(rename = "win32")]
@@ -91,18 +120,62 @@ mod release_notes_file {
         #[serde(rename = "linux")]
         Linux,
     }
+    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub enum ReleasePlatformV2 {
+        #[serde(rename = "windows-x86_64")]
+        Win64,
+        #[serde(rename = "windows-i686")]
+        Win32,
+        #[serde(rename = "linux-x86_64")]
+        Linux,
+    }
+
+    #[derive(
+        Debug,
+        Clone,
+        Serialize,
+        Deserialize,
+        PartialEq,
+        Eq,
+        PartialOrd,
+        Ord,
+        Hash,
+        derive_more::From,
+    )]
+    #[serde(untagged)]
+    pub enum ReleasePlatform {
+        V1(ReleasePlatformV1),
+        V2(ReleasePlatformV2),
+    }
 
     impl ReleasePlatform {
         pub fn to_installer_str(&self) -> String {
+            // match self {
+            //     ReleasePlatform::Win64 => "x64",
+            //     ReleasePlatform::Win32 => "x86",
+            //     ReleasePlatform::Linux => unimplemented!("this platform is not supported"),
+            // }
+            // .to_owned()
+
             match self {
-                ReleasePlatform::Win64 => "x64",
-                ReleasePlatform::Win32 => "x86",
-                ReleasePlatform::Linux => unimplemented!("this platform is not supported"),
+                ReleasePlatform::V1(r) => match r {
+                    ReleasePlatformV1::Win64 => "x64",
+                    ReleasePlatformV1::Win32 => "x86",
+                    ReleasePlatformV1::Linux => {
+                        unimplemented!("linux platform is not supported at the moment")
+                    }
+                },
+                ReleasePlatform::V2(r) => match r {
+                    ReleasePlatformV2::Win64 => "x64",
+                    ReleasePlatformV2::Win32 => "x86",
+                    ReleasePlatformV2::Linux => {
+                        unimplemented!("linux platform is not supported at the moment")
+                    }
+                },
             }
             .to_owned()
         }
     }
-
     #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct RemoteRelease {
         pub url: String,
@@ -181,7 +254,10 @@ pub mod tauri_conf_json {
     #[cfg(test)]
     mod tests {
         use super::*;
-        use anyhow::{Context, Result};
+        use anyhow::{
+            Context,
+            Result,
+        };
         const CONTENT: &str = include_str!("../test_data/tauri.conf.json");
         #[test]
         fn test_file_loads() -> Result<()> {
@@ -488,7 +564,7 @@ async fn main() -> Result<()> {
             target
         }
     };
-    let release_platform = target
+    let release_platforms = target
         .to_release_platform()
         .context("getting release platform from target")?;
     // s3 config
@@ -577,15 +653,20 @@ async fn main() -> Result<()> {
                 name: format!("{} {}", branch, tauri_conf_json.package.version),
                 notes: "released new version".to_string(), // TODO: customise this
                 pub_date: chrono::Utc::now().naive_utc(),
-                platforms: [(
-                    release_platform,
-                    RemoteRelease {
-                        url: binary_url.clone(),
-                        signature,
-                    },
-                )]
-                .into_iter()
-                .collect(),
+                platforms: release_platforms
+                    .into_iter()
+                    .map(|release_platform| {
+                        (
+                            release_platform,
+                            RemoteRelease {
+                                url: binary_url.clone(),
+                                signature: signature.clone(),
+                            },
+                        )
+                    })
+                    .collect(), // platforms: []
+                                // .into_iter()
+                                // .collect(),
             };
             log::info!(
                 " :: uploading release ::\n{}\n\n",

@@ -10,6 +10,7 @@ anyhow = "1.0.56"
 chrono = { version = "0.4.19", features = ["serde"] }
 clap = { version = "3.1.7", features = ["cargo", "derive", "clap_derive"] }
 data-encoding = "2.3.2"
+derive_more = "0.99.17"
 dotenv = "0.15.0"
 encoding = "0.2.33"
 enum-iterator = "0.7.0"
