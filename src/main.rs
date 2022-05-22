@@ -185,6 +185,7 @@ mod release_notes_file {
     #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct ReleaseNotes {
         pub name: String,
+        pub version: String,
         pub notes: String,
         pub pub_date: chrono::NaiveDateTime,
         pub platforms: HashMap<ReleasePlatform, RemoteRelease>,
@@ -677,6 +678,7 @@ async fn main() -> Result<()> {
 
             let release = release_notes_file::ReleaseNotes {
                 name: format!("{} {}", branch, tauri_conf_json.package.version),
+                version: tauri_conf_json.package.version.clone(),
                 notes: "released new version".to_string(), // TODO: customise this
                 pub_date: chrono::Utc::now().naive_utc(),
                 platforms: release_platforms
