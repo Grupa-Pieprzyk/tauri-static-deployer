@@ -228,10 +228,17 @@ pub mod tauri_conf_json {
     #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct Tauri {
         pub updater: Updater,
+        pub bundle: Bundle,
         #[serde(flatten)]
         pub rest: serde_json::Value,
     }
 
+    #[derive(Debug, Clone, Serialize, Deserialize)]
+    pub struct Bundle {
+        pub identifier: String,
+        #[serde(flatten)]
+        pub rest: serde_json::Value,
+    }
     #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct TauriConfJson {
         pub package: Package,
@@ -247,6 +254,18 @@ pub mod tauri_conf_json {
                 "tauri.updater.endpoints :: {:?} -> {:?}",
                 old,
                 self.tauri.updater.endpoints
+            );
+            self
+        }
+
+        pub fn with_update_identifier(&mut self, identifier: String) -> &mut Self {
+            let old = self.tauri.bundle.identifier.clone();
+
+            self.tauri.bundle.identifier = identifier;
+            log::info!(
+                "tauri.bundle.identifier :: {:?} -> {:?}",
+                old,
+                self.tauri.bundle.identifier
             );
             self
         }
@@ -549,8 +568,8 @@ async fn main() -> Result<()> {
     let args = Args::parse();
     let path = args.tauri_conf_json_path;
     // tauri.conf.json
-    let path = PathBuf::from_str(&path).context("parsing tauri.conf.json path")?;
-    let mut tauri_conf_json: TauriConfJson = std::fs::read_to_string(&path)
+    let tauri_conf_json_path = PathBuf::from_str(&path).context("parsing tauri.conf.json path")?;
+    let mut tauri_conf_json: TauriConfJson = std::fs::read_to_string(&tauri_conf_json_path)
         .context("reading tauri.conf.json")
         .and_then(|content| serde_json::from_str(&content).context("parsing tauri.conf.json"))?;
     // metadata
@@ -572,13 +591,20 @@ async fn main() -> Result<()> {
 
     match args.command {
         Command::Patch => {
-            log::info!("patching {}", path.display());
-            tauri_conf_json.with_update_endpoint(namespacing::derive_release_file_s3_url(
-                &tauri_conf_json,
-                &branch,
-                &target,
-                &s3_config,
-            ));
+            log::info!("patching {}", tauri_conf_json_path.display());
+            let new_identifier = format!(
+                "{}__{}",
+                tauri_conf_json.tauri.bundle.identifier,
+                branch.replace('/', "_").replace(" ", "_").replace(":", "_")
+            );
+            tauri_conf_json
+                .with_update_endpoint(namespacing::derive_release_file_s3_url(
+                    &tauri_conf_json,
+                    &branch,
+                    &target,
+                    &s3_config,
+                ))
+                .with_update_identifier(new_identifier);
         }
         Command::Upload { release_dir } => {
             let release_dir = match release_dir {
@@ -708,7 +734,10 @@ async fn main() -> Result<()> {
 
     serde_json::to_string_pretty(&tauri_conf_json)
         .context("serializing tauri.conf.json content")
-        .and_then(|conf| std::fs::write(path, &conf).context("saving tauri.conf.json"))?;
+        .and_then(|conf| {
+            log::info!("writing to {:?}:\n\n{}\n\n", tauri_conf_json_path, conf);
+            std::fs::write(tauri_conf_json_path, &conf).context("saving tauri.conf.json")
+        })?;
     log::info!("DONE");
     Ok(())
 }
