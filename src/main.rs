@@ -595,7 +595,7 @@ async fn main() -> Result<()> {
             let new_identifier = format!(
                 "{}__{}",
                 tauri_conf_json.tauri.bundle.identifier,
-                branch.replace('/', "_").replace(" ", "_").replace(":", "_")
+                branch.replace('/', "_").replace(' ', "_").replace(':', "_")
             );
             tauri_conf_json
                 .with_update_endpoint(namespacing::derive_release_file_s3_url(
