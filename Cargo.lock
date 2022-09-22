@@ -1473,7 +1473,7 @@ dependencies = [
 
 [[package]]
 name = "tauri-static-deployer"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1566,7 +1566,6 @@ dependencies = [
  "itoa",
  "libc",
  "num_threads",
- "serde",
  "time-macros",
 ]
 

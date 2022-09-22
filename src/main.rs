@@ -109,6 +109,8 @@ impl FromStr for RustTarget {
 mod release_notes_file {
     use std::collections::HashMap;
 
+    use time::OffsetDateTime;
+
     use super::*;
 
     #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -187,8 +189,41 @@ mod release_notes_file {
         pub name: String,
         pub version: String,
         pub notes: String,
-        pub pub_date: time::OffsetDateTime,
+        #[serde(with = "serde_pub_date")]
+        pub pub_date: OffsetDateTime,
         pub platforms: HashMap<ReleasePlatform, RemoteRelease>,
+    }
+
+    mod serde_pub_date {
+        use serde::{
+            Deserialize,
+            Deserializer,
+            Serializer,
+        };
+        use time::format_description::well_known::Rfc3339;
+        use time::OffsetDateTime;
+        const FORMAT: Rfc3339 = Rfc3339;
+
+        pub fn deserialize<'de, D>(d: D) -> Result<OffsetDateTime, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            let date = String::deserialize(d)?;
+            OffsetDateTime::parse(&date, &FORMAT).map_err(|e| {
+                serde::de::Error::custom(format!("invalid value for `OffsetDateTime`: {}", e))
+            })
+        }
+        pub fn serialize<S>(val: &OffsetDateTime, ser: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            let val: String = val.format(&FORMAT).map_err(|e| {
+                serde::ser::Error::custom(format!(
+                    "date {val:?} is not serializable to RFC format {FORMAT:?}: {e:?}"
+                ))
+            })?;
+            ser.serialize_str(&val)
+        }
     }
 
     #[cfg(test)]
