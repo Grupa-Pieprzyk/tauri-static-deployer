@@ -187,7 +187,7 @@ mod release_notes_file {
         pub name: String,
         pub version: String,
         pub notes: String,
-        pub pub_date: chrono::NaiveDateTime,
+        pub pub_date: time::OffsetDateTime,
         pub platforms: HashMap<ReleasePlatform, RemoteRelease>,
     }
 
@@ -680,7 +680,7 @@ async fn main() -> Result<()> {
                 name: format!("{} {}", branch, tauri_conf_json.package.version),
                 version: tauri_conf_json.package.version.clone(),
                 notes: "released new version".to_string(), // TODO: customise this
-                pub_date: chrono::Utc::now().naive_utc(),
+                pub_date: time::OffsetDateTime::now_utc(),
                 platforms: release_platforms
                     .into_iter()
                     .map(|release_platform| {

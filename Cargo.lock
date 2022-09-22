@@ -1492,6 +1492,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_variant",
+ "time 0.3.14",
  "tokio",
  "walkdir",
 ]
@@ -1565,6 +1566,7 @@ dependencies = [
  "itoa",
  "libc",
  "num_threads",
+ "serde",
  "time-macros",
 ]
 
