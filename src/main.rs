@@ -594,7 +594,7 @@ async fn main() -> Result<()> {
         Command::Patch => {
             log::info!("patching {}", tauri_conf_json_path.display());
             let new_identifier = format!(
-                "{}__{}",
+                "{}.{}",
                 tauri_conf_json.tauri.bundle.identifier,
                 branch.replace('/', "_").replace(' ', "_").replace(':', "_")
             );
