@@ -186,7 +186,8 @@ mod release_notes_file {
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct ReleaseNotes {
-        pub name: String,
+        // pub name: String,
+        /// 'name' is deprecated, prefer using version. version must be semver compatible
         pub version: String,
         pub notes: String,
         #[serde(with = "serde_pub_date")]
@@ -229,6 +230,22 @@ mod release_notes_file {
     #[cfg(test)]
     mod tests {
         use super::*;
+        #[test]
+        fn test_generated_release_works() -> anyhow::Result<()> {
+            let example = ReleaseNotes {
+                version: "1.2.3".to_string(),
+                notes: "test".to_string(),
+                pub_date: OffsetDateTime::now_utc(),
+                platforms: Default::default(),
+            };
+
+            let serialized = serde_json::to_string_pretty(&example).context("serializing")?;
+            eprintln!("{serialized}");
+            let deserialized: ReleaseNotes =
+                serde_json::from_str(&serialized).context("deserializing")?;
+            assert_eq!(example.pub_date, deserialized.pub_date);
+            Ok(())
+        }
         #[test]
         fn check_current_release_file_works() -> anyhow::Result<()> {
             const CURRENT: &str = include_str!("../test_data/release-notes.json");
@@ -416,19 +433,22 @@ pub mod metadata {
 
     use super::*;
 
+    fn fix_newlines(val: &str) -> String {
+        val.trim_end_matches("\r\n")
+            .trim_end_matches("\n\r")
+            .trim_end_matches("\r")
+            .trim_end_matches("\n")
+            .trim_end_matches("\r")
+            .trim_end_matches("\n")
+            .to_string()
+            .replace("\r", "")
+    }
+
     #[cfg(target_os = "windows")]
     pub fn decode_command_output(bytes: &[u8]) -> Result<String> {
         use encoding::Encoding;
         match encoding::all::WINDOWS_1252.decode(bytes, encoding::DecoderTrap::Ignore) {
-            Ok(v) => Ok(v
-                .trim_end_matches("\r\n")
-                .trim_end_matches("\n\r")
-                .trim_end_matches("\r")
-                .trim_end_matches("\n")
-                .trim_end_matches("\r")
-                .trim_end_matches("\n")
-                .to_string()
-                .replace("\r", "")),
+            Ok(v) => Ok(fix_newlines(&v)),
             Err(e) => Err(anyhow::anyhow!(
                 "failed to decode windows output :: {:?}",
                 e
@@ -438,7 +458,9 @@ pub mod metadata {
 
     #[cfg(not(target_os = "windows"))]
     pub fn decode_command_output(bytes: &[u8]) -> Result<String> {
-        String::from_utf8(bytes.to_vec()).context("failed to decode linux output")
+        String::from_utf8(bytes.to_vec())
+            .context("failed to decode linux output")
+            .map(|s| fix_newlines(&s))
     }
     pub fn current_target() -> Result<RustTarget> {
         let out = std::process::Command::new("rustup")
@@ -712,9 +734,12 @@ async fn main() -> Result<()> {
             };
 
             let release = release_notes_file::ReleaseNotes {
-                name: format!("{} {}", branch, tauri_conf_json.package.version),
+                notes: format!(
+                    "new {} release: {}",
+                    branch, tauri_conf_json.package.version
+                ),
                 version: tauri_conf_json.package.version.clone(),
-                notes: "released new version".to_string(), // TODO: customise this
+                // notes: "released new version".to_string(), // TODO: customise this
                 pub_date: time::OffsetDateTime::now_utc(),
                 platforms: release_platforms
                     .into_iter()
