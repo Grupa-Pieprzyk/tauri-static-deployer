@@ -668,7 +668,11 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
     let args = Args::parse();
     let path = args.tauri_conf_json_path;
-    let git_hash = git_hash()?;
+    let git_hash = git_hash().unwrap_or_else(|e| {
+        warn!("no commit hash: {e:?}");
+        warn!("using uuid instead");
+        uuid::Uuid::new_v4().to_string()
+    });
     // tauri.conf.json
     let tauri_conf_json_path = PathBuf::from_str(&path).wrap_err("parsing tauri.conf.json path")?;
     let mut tauri_conf_json: TauriConfJson = std::fs::read_to_string(&tauri_conf_json_path)
