@@ -13,7 +13,11 @@ use release_notes_file::{
     ReleasePlatformV1,
     ReleasePlatformV2,
 };
-use s3_handler::S3Config;
+use s3_helpers::s3_handler::handle_s3;
+use s3_helpers::{
+    s3_handler,
+    S3Config,
+};
 use serde::{
     Deserialize,
     Serialize,
@@ -24,6 +28,7 @@ use std::{
     str::FromStr,
 };
 use tauri_conf_json::TauriConfJson;
+use tracing::instrument;
 
 #[allow(unused_imports)]
 use tracing::{
@@ -307,6 +312,7 @@ pub mod tauri_conf_json {
         #[serde(flatten)]
         pub rest: serde_json::Value,
     }
+
     impl TauriConfJson {
         pub fn with_update_endpoint(&mut self, endpoint: String) -> &mut Self {
             let old = self.tauri.updater.endpoints.clone();
@@ -329,6 +335,7 @@ pub mod tauri_conf_json {
             self
         }
     }
+
     #[cfg(test)]
     mod tests {
         use super::*;
@@ -352,88 +359,88 @@ pub mod tauri_conf_json {
     }
 }
 
-pub mod s3_handler {
-    use eyre::bail;
-    pub mod handle_s3 {
+// pub mod s3_handler {
+//     use eyre::bail;
+//     pub mod handle_s3 {
 
-        use super::*;
+//         use super::*;
 
-        pub fn s3_url_prefix(config: &S3Config) -> String {
-            format!(
-                "https://{}.{}.digitaloceanspaces.com",
-                config.bucket.name, config.bucket.region
-            )
-        }
-        pub async fn upload_to_s3<T: AsRef<Path>>(
-            file: T,
-            config: &S3Config,
-            s3_path: &str,
-        ) -> eyre::Result<String> {
-            info!("sending to s3 :: {} [{}]", file.as_ref().display(), s3_path);
-            let mut path = tokio::fs::File::open(&file)
-                .await
-                .wrap_err("failed to open file for sending to S3")?;
-            let code = config
-                .bucket
-                .put_object_stream(&mut path, s3_path)
-                .await
-                .wrap_err(format!(
-                    "failed to send file to S3: {}",
-                    file.as_ref().display()
-                ))?;
-            if code != 200 {
-                bail!(
-                    "S3 returned non-200 code for [{}] -> [{}]",
-                    file.as_ref().display(),
-                    s3_path
-                )
-            }
-            let url = format!("{}/{}", s3_url_prefix(config), s3_path);
-            info!("SUCCESS :: new asset available under [{url}]");
-            Ok(url)
-        }
-    }
+//         pub fn s3_url_prefix(config: &S3Config) -> String {
+//             format!(
+//                 "https://{}.{}.digitaloceanspaces.com",
+//                 config.bucket.name, config.bucket.region
+//             )
+//         }
+//         pub async fn upload_to_s3<T: AsRef<Path>>(
+//             file: T,
+//             config: &S3Config,
+//             s3_path: &str,
+//         ) -> eyre::Result<String> {
+//             info!("sending to s3 :: {} [{}]", file.as_ref().display(), s3_path);
+//             let mut path = tokio::fs::File::open(&file)
+//                 .await
+//                 .wrap_err("failed to open file for sending to S3")?;
+//             let code = config
+//                 .bucket
+//                 .put_object_stream(&mut path, s3_path)
+//                 .await
+//                 .wrap_err(format!(
+//                     "failed to send file to S3: {}",
+//                     file.as_ref().display()
+//                 ))?;
+//             if code != 200 {
+//                 bail!(
+//                     "S3 returned non-200 code for [{}] -> [{}]",
+//                     file.as_ref().display(),
+//                     s3_path
+//                 )
+//             }
+//             let url = format!("{}/{}", s3_url_prefix(config), s3_path);
+//             info!("SUCCESS :: new asset available under [{url}]");
+//             Ok(url)
+//         }
+//     }
 
-    use super::*;
-    #[derive(Debug, Clone)]
-    pub struct S3Config {
-        pub bucket: s3::Bucket,
-    }
+//     use super::*;
+//     #[derive(Debug, Clone)]
+//     pub struct S3Config {
+//         pub bucket: s3::Bucket,
+//     }
 
-    impl S3Config {
-        pub fn try_from_env() -> eyre::Result<Self> {
-            let access_key = env_required!("S3_ACCESS_KEY");
-            let secret_key = env_required!("S3_SECRET_KEY");
-            let bucket = env_required!("S3_BUCKET");
-            let region = env_required!("S3_REGION");
-            let credentials = s3::creds::Credentials::new(
-                Some(access_key.as_str()),
-                Some(secret_key.as_str()),
-                None,
-                None,
-                None,
-            )
-            .wrap_err("bad s3 credentials")?;
+//     impl S3Config {
+//         pub fn try_from_env() -> eyre::Result<Self> {
+//             let access_key = env_required!("S3_ACCESS_KEY");
+//             let secret_key = env_required!("S3_SECRET_KEY");
+//             let bucket = env_required!("S3_BUCKET");
+//             let region = env_required!("S3_REGION");
+//             let credentials = s3::creds::Credentials::new(
+//                 Some(access_key.as_str()),
+//                 Some(secret_key.as_str()),
+//                 None,
+//                 None,
+//                 None,
+//             )
+//             .wrap_err("bad s3 credentials")?;
 
-            let region = s3::Region::Custom {
-                endpoint: format!("{region}.digitaloceanspaces.com"),
-                region,
-            };
-            let mut bucket =
-                s3::Bucket::new(bucket.as_str(), region, credentials).wrap_err("bad bucket")?;
-            bucket.add_header("x-amz-acl", "public-read");
-            Ok(Self { bucket })
-        }
+//             let region = s3::Region::Custom {
+//                 endpoint: format!("{region}.digitaloceanspaces.com"),
+//                 region,
+//             };
+//             let mut bucket =
+//                 s3::Bucket::new(bucket.as_str(), region, credentials).wrap_err("bad bucket")?;
+//             bucket.add_header("x-amz-acl", "public-read");
+//             Ok(Self { bucket })
+//         }
 
-        pub async fn upload_to_subdirectory<T: AsRef<Path>>(
-            &self,
-            file: T,
-            s3_path: &str,
-        ) -> eyre::Result<String> {
-            handle_s3::upload_to_s3(file, self, s3_path).await
-        }
-    }
-}
+//         pub async fn upload_to_subdirectory<T: AsRef<Path>>(
+//             &self,
+//             file: T,
+//             s3_path: &str,
+//         ) -> eyre::Result<String> {
+//             handle_s3::upload_to_s3(file, self, s3_path).await
+//         }
+//     }
+// }
 
 pub mod metadata {
 
@@ -465,6 +472,7 @@ pub mod metadata {
             .wrap_err("failed to decode linux output")
             .map(|s| fix_newlines(&s))
     }
+
     pub fn current_target() -> Result<RustTarget> {
         let out = std::process::Command::new("rustup")
             .arg("default")
@@ -487,6 +495,7 @@ pub mod metadata {
         Ok(target)
     }
 
+    #[instrument(ret, level = "debug")]
     pub fn current_branch() -> Result<String> {
         let out = std::process::Command::new("git")
             .arg("branch")
@@ -514,6 +523,7 @@ pub mod metadata {
 }
 pub mod namespacing {
     use super::*;
+    #[instrument(ret)]
     pub fn derive_release_base_key(branch_name: &str, target: &RustTarget) -> String {
         format!(
             "{}/{}",
@@ -522,6 +532,7 @@ pub mod namespacing {
         )
     }
 
+    #[instrument(ret)]
     pub fn derive_release_file_s3_key(branch_name: &str, target: &RustTarget) -> String {
         format!(
             "{}/release-notes.json",
@@ -529,6 +540,7 @@ pub mod namespacing {
         )
     }
 
+    #[instrument(ret)]
     pub fn derive_release_file_s3_url(
         _tauri_conf_json: &TauriConfJson,
         branch_name: &str,
@@ -542,11 +554,13 @@ pub mod namespacing {
         )
     }
 
+    #[instrument(ret, skip(binary_file_path), fields(binary_file_parh=%binary_file_path.as_ref().display()))]
     pub fn derive_binary_file_s3_key<T: AsRef<Path>>(
         tauri_conf_json: &TauriConfJson,
         target: &RustTarget,
         branch_name: &str,
         binary_file_path: T,
+        git_commit_hash: &str,
     ) -> Result<String> {
         let filename = binary_file_path
             .as_ref()
@@ -556,7 +570,7 @@ pub mod namespacing {
             .to_string_lossy()
             .to_string();
         Ok(format!(
-            "{}/{}/{}",
+            "{}/{}/{git_commit_hash}/{}",
             derive_release_base_key(branch_name, target),
             &tauri_conf_json.package.version,
             filename
@@ -602,10 +616,12 @@ enum Command {
     /// must be run before tauri action, tauri.conf.json needs to be patched in order for updater to reference the correct S3 release manifest file.
     Patch,
     /// this builds and publishes the release according to s3 config
-    /// NOE: this stage also cleans up release artifacts after uploading them - by default rust-cache action saves them all which makes the cache grow out of control
     Upload {
         #[clap(short, long, value_name = "DIR")]
         release_dir: Option<PathBuf>,
+        /// this stage also cleans up release artifacts after uploading them - by default rust-cache action saves them all which makes the cache grow out of control
+        #[clap(short, long)]
+        cleanup: bool,
     },
 }
 
@@ -624,6 +640,27 @@ struct Args {
     command: Command,
 }
 
+fn git_hash() -> Result<String> {
+    let output = std::process::Command::new("git")
+        .args(&["rev-parse", "HEAD"])
+        .output()
+        .context("faled to read git hash")?;
+    let git_hash = String::from_utf8(output.stdout)
+        .map(|v| v.trim().to_string())
+        .context("faled to read git hash")
+        .and_then(|v| {
+            if v.is_empty() {
+                Err(eyre::eyre!("empty git commit"))
+            } else {
+                Ok(v)
+            }
+        })?
+        .chars()
+        .take(8)
+        .collect();
+    Ok(git_hash)
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     dotenv::dotenv().ok();
@@ -631,6 +668,7 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
     let args = Args::parse();
     let path = args.tauri_conf_json_path;
+    let git_hash = git_hash()?;
     // tauri.conf.json
     let tauri_conf_json_path = PathBuf::from_str(&path).wrap_err("parsing tauri.conf.json path")?;
     let mut tauri_conf_json: TauriConfJson = std::fs::read_to_string(&tauri_conf_json_path)
@@ -651,8 +689,11 @@ async fn main() -> Result<()> {
         .to_release_platform()
         .wrap_err("getting release platform from target")?;
     // s3 config
-    let s3_config = s3_handler::S3Config::try_from_env().wrap_err("getting s3 config from env")?;
+    let s3_config = S3Config::try_from_env()
+        .map_err(|e| eyre::eyre!("{e:?}"))
+        .wrap_err("getting s3 config from env")?;
 
+    debug!(?s3_config);
     match args.command {
         Command::Patch => {
             info!("patching {}", tauri_conf_json_path.display());
@@ -670,7 +711,10 @@ async fn main() -> Result<()> {
                 ))
                 .with_update_identifier(new_identifier);
         }
-        Command::Upload { release_dir } => {
+        Command::Upload {
+            release_dir,
+            cleanup,
+        } => {
             let release_dir = match release_dir {
                 Some(r) => r,
                 None => release_assets_path(&target).wrap_err("failed to derive a release path")?,
@@ -693,6 +737,7 @@ async fn main() -> Result<()> {
                         &target,
                         &branch,
                         binary_file_path.clone(),
+                        &git_hash,
                     )
                     .map(|key| (binary_file_path, key))
                 })
@@ -701,20 +746,31 @@ async fn main() -> Result<()> {
             info!("uploading:\n{:#?}", with_keys);
             let tasks = with_keys
                 .iter()
-                .map(|(path, key)| s3_config.upload_to_subdirectory(path, key))
+                .map(|(path, key)| {
+                    handle_s3::upload_to_s3(
+                        path,
+                        &s3_config,
+                        handle_s3::s3_path_with_subdirectory(&s3_config, key),
+                    )
+                })
                 .collect_vec();
             let urls = futures::future::try_join_all(tasks)
                 .await
+                .map_err(|e| eyre::eyre!("{e:?}"))
                 .wrap_err("uploading all binary files")?;
-            info!("all files uploaded, cleaning up to prevent cache from growing out of control");
-            files
-                .into_iter()
-                .map(|path| {
-                    std::fs::remove_file(&path)
-                        .wrap_err(format!("cleaning up [{}]", path.display()))
-                })
-                .collect::<Result<Vec<_>, _>>()
-                .wrap_err("cleaning up cache")?;
+            info!("all files uploaded");
+            if cleanup {
+                warn!("cleaning up to prevent cache from growing out of control");
+                files
+                    .into_iter()
+                    .map(|path| {
+                        std::fs::remove_file(&path)
+                            .wrap_err(format!("cleaning up [{}]", path.display()))
+                    })
+                    .collect::<Result<Vec<_>, _>>()
+                    .wrap_err("cleaning up cache")?;
+            }
+
             let binary_url = urls
                 .iter()
                 .find(|url| url.ends_with(".zip"))
@@ -778,10 +834,14 @@ async fn main() -> Result<()> {
             };
             let release_key = derive_release_file_s3_key(&branch, &target);
             info!("binaries upload successfully, generating release_file");
-            let release_file_url = s3_config
-                .upload_to_subdirectory(release_local_path, &release_key)
-                .await
-                .wrap_err("uploading release file to s3")?;
+            let release_file_url = handle_s3::upload_to_s3(
+                release_local_path,
+                &s3_config,
+                handle_s3::s3_path_with_subdirectory(&s3_config, &release_key),
+            )
+            .await
+            .map_err(|e| eyre::eyre!("{e:?}"))
+            .wrap_err("uploading release file to s3")?;
 
             info!(" :: validating ::");
             if !tauri_conf_json

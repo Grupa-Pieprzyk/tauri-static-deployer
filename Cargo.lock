@@ -47,6 +47,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "anyhow"
+version = "1.0.65"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "98161a4e3e2184da77bb14f02184cdd111e83bbbcc9979dfee3c44b9a85f5602"
+
+[[package]]
 name = "async-trait"
 version = "0.1.57"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1297,6 +1303,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4501abdff3ae82a1c1b477a17252eb69cee9e66eb915c1abaa4f44d873df9f09"
 
 [[package]]
+name = "s3_helpers"
+version = "0.3.1"
+source = "git+https://github.com/Grupa-Pieprzyk/s3-helpers#c875fcdbb3e83be662479dace5177047ee2c770a"
+dependencies = [
+ "anyhow",
+ "derive_more",
+ "log",
+ "rust-s3",
+ "tokio",
+]
+
+[[package]]
 name = "same-file"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1523,6 +1541,7 @@ dependencies = [
  "itertools",
  "reqwest",
  "rust-s3",
+ "s3_helpers",
  "serde",
  "serde_json",
  "serde_variant",
