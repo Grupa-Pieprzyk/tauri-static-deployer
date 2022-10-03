@@ -1,18 +1,13 @@
-use std::{
-    path::PathBuf,
-    str::FromStr,
-};
-
-use anyhow::{
-    bail,
-    Context,
-    Result,
-};
 use clap::{
     Parser,
     Subcommand,
 };
 use enum_iterator::IntoEnumIterator;
+use eyre::{
+    bail,
+    Result,
+    WrapErr,
+};
 use itertools::Itertools;
 use release_notes_file::{
     ReleasePlatformV1,
@@ -24,7 +19,20 @@ use serde::{
     Serialize,
 };
 use std::path::Path;
+use std::{
+    path::PathBuf,
+    str::FromStr,
+};
 use tauri_conf_json::TauriConfJson;
+
+#[allow(unused_imports)]
+use tracing::{
+    debug,
+    error,
+    info,
+    trace,
+    warn,
+};
 
 use crate::{
     namespacing::{
@@ -36,7 +44,7 @@ use crate::{
 
 macro_rules! env_required {
     ($env:literal) => {
-        std::env::var($env).context(format!("{} missing", $env))?
+        std::env::var($env).wrap_err(format!("{} missing", $env))?
     };
 }
 
@@ -83,7 +91,7 @@ macro_rules! matched_variant {
     ($Self:ty, $v:expr) => {{
         Self::into_enum_iter()
             .find(|v| serde_variant::to_variant_name(v).expect("bad variant?") == $v)
-            .ok_or(anyhow::anyhow!(
+            .ok_or(eyre::eyre!(
                 "{} hasn't matched any variant of {}",
                 $v,
                 std::any::type_name::<$Self>()
@@ -91,7 +99,7 @@ macro_rules! matched_variant {
     }};
 }
 impl FromStr for RustChannel {
-    type Err = anyhow::Error;
+    type Err = eyre::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         matched_variant!(Self, s)
@@ -99,7 +107,7 @@ impl FromStr for RustChannel {
 }
 
 impl FromStr for RustTarget {
-    type Err = anyhow::Error;
+    type Err = eyre::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         matched_variant!(Self, s)
@@ -231,7 +239,7 @@ mod release_notes_file {
     mod tests {
         use super::*;
         #[test]
-        fn test_generated_release_works() -> anyhow::Result<()> {
+        fn test_generated_release_works() -> eyre::Result<()> {
             let example = ReleaseNotes {
                 version: "1.2.3".to_string(),
                 notes: "test".to_string(),
@@ -239,21 +247,21 @@ mod release_notes_file {
                 platforms: Default::default(),
             };
 
-            let serialized = serde_json::to_string_pretty(&example).context("serializing")?;
+            let serialized = serde_json::to_string_pretty(&example).wrap_err("serializing")?;
             eprintln!("{serialized}");
             let deserialized: ReleaseNotes =
-                serde_json::from_str(&serialized).context("deserializing")?;
+                serde_json::from_str(&serialized).wrap_err("deserializing")?;
             assert_eq!(example.pub_date, deserialized.pub_date);
             Ok(())
         }
         #[test]
-        fn check_current_release_file_works() -> anyhow::Result<()> {
+        fn check_current_release_file_works() -> eyre::Result<()> {
             const CURRENT: &str = include_str!("../test_data/release-notes.json");
             let parsed: ReleaseNotes =
-                serde_json::from_str(CURRENT).context("could not parse the original")?;
+                serde_json::from_str(CURRENT).wrap_err("could not parse the original")?;
             assert_eq!(
                 serde_json::to_string_pretty(&parsed)
-                    .context("could not serialize")?
+                    .wrap_err("could not serialize")?
                     .trim(),
                 CURRENT.trim()
             );
@@ -303,10 +311,9 @@ pub mod tauri_conf_json {
         pub fn with_update_endpoint(&mut self, endpoint: String) -> &mut Self {
             let old = self.tauri.updater.endpoints.clone();
             self.tauri.updater.endpoints = vec![endpoint];
-            log::info!(
+            info!(
                 "tauri.updater.endpoints :: {:?} -> {:?}",
-                old,
-                self.tauri.updater.endpoints
+                old, self.tauri.updater.endpoints
             );
             self
         }
@@ -315,10 +322,9 @@ pub mod tauri_conf_json {
             let old = self.tauri.bundle.identifier.clone();
 
             self.tauri.bundle.identifier = identifier;
-            log::info!(
+            info!(
                 "tauri.bundle.identifier :: {:?} -> {:?}",
-                old,
-                self.tauri.bundle.identifier
+                old, self.tauri.bundle.identifier
             );
             self
         }
@@ -326,7 +332,7 @@ pub mod tauri_conf_json {
     #[cfg(test)]
     mod tests {
         use super::*;
-        use anyhow::{
+        use eyre::{
             Context,
             Result,
         };
@@ -334,9 +340,9 @@ pub mod tauri_conf_json {
         #[test]
         fn test_file_loads() -> Result<()> {
             let original: serde_json::Value =
-                serde_json::from_str(CONTENT).context("failed to parse tauri.conf.json")?;
+                serde_json::from_str(CONTENT).wrap_err("failed to parse tauri.conf.json")?;
             let parsed: TauriConfJson =
-                serde_json::from_str(CONTENT).context("failed to parse tauri.conf.json")?;
+                serde_json::from_str(CONTENT).wrap_err("failed to parse tauri.conf.json")?;
             let reparsed: serde_json::Value =
                 serde_json::from_str(&serde_json::to_string_pretty(&parsed)?)?;
             println!("{reparsed:#?}");
@@ -347,7 +353,7 @@ pub mod tauri_conf_json {
 }
 
 pub mod s3_handler {
-    use anyhow::bail;
+    use eyre::bail;
     pub mod handle_s3 {
 
         use super::*;
@@ -362,16 +368,16 @@ pub mod s3_handler {
             file: T,
             config: &S3Config,
             s3_path: &str,
-        ) -> anyhow::Result<String> {
-            log::info!("sending to s3 :: {} [{}]", file.as_ref().display(), s3_path);
+        ) -> eyre::Result<String> {
+            info!("sending to s3 :: {} [{}]", file.as_ref().display(), s3_path);
             let mut path = tokio::fs::File::open(&file)
                 .await
-                .context("failed to open file for sending to S3")?;
+                .wrap_err("failed to open file for sending to S3")?;
             let code = config
                 .bucket
                 .put_object_stream(&mut path, s3_path)
                 .await
-                .context(format!(
+                .wrap_err(format!(
                     "failed to send file to S3: {}",
                     file.as_ref().display()
                 ))?;
@@ -383,7 +389,7 @@ pub mod s3_handler {
                 )
             }
             let url = format!("{}/{}", s3_url_prefix(config), s3_path);
-            log::info!("SUCCESS :: new asset available under [{url}]");
+            info!("SUCCESS :: new asset available under [{url}]");
             Ok(url)
         }
     }
@@ -395,7 +401,7 @@ pub mod s3_handler {
     }
 
     impl S3Config {
-        pub fn try_from_env() -> anyhow::Result<Self> {
+        pub fn try_from_env() -> eyre::Result<Self> {
             let access_key = env_required!("S3_ACCESS_KEY");
             let secret_key = env_required!("S3_SECRET_KEY");
             let bucket = env_required!("S3_BUCKET");
@@ -407,14 +413,14 @@ pub mod s3_handler {
                 None,
                 None,
             )
-            .context("bad s3 credentials")?;
+            .wrap_err("bad s3 credentials")?;
 
             let region = s3::Region::Custom {
                 endpoint: format!("{region}.digitaloceanspaces.com"),
                 region,
             };
             let mut bucket =
-                s3::Bucket::new(bucket.as_str(), region, credentials).context("bad bucket")?;
+                s3::Bucket::new(bucket.as_str(), region, credentials).wrap_err("bad bucket")?;
             bucket.add_header("x-amz-acl", "public-read");
             Ok(Self { bucket })
         }
@@ -423,7 +429,7 @@ pub mod s3_handler {
             &self,
             file: T,
             s3_path: &str,
-        ) -> anyhow::Result<String> {
+        ) -> eyre::Result<String> {
             handle_s3::upload_to_s3(file, self, s3_path).await
         }
     }
@@ -436,12 +442,12 @@ pub mod metadata {
     fn fix_newlines(val: &str) -> String {
         val.trim_end_matches("\r\n")
             .trim_end_matches("\n\r")
-            .trim_end_matches("\r")
-            .trim_end_matches("\n")
-            .trim_end_matches("\r")
-            .trim_end_matches("\n")
+            .trim_end_matches('\r')
+            .trim_end_matches('\n')
+            .trim_end_matches('\r')
+            .trim_end_matches('\n')
             .to_string()
-            .replace("\r", "")
+            .replace('\r', "")
     }
 
     #[cfg(target_os = "windows")]
@@ -449,34 +455,33 @@ pub mod metadata {
         use encoding::Encoding;
         match encoding::all::WINDOWS_1252.decode(bytes, encoding::DecoderTrap::Ignore) {
             Ok(v) => Ok(fix_newlines(&v)),
-            Err(e) => Err(anyhow::anyhow!(
-                "failed to decode windows output :: {:?}",
-                e
-            )),
+            Err(e) => Err(eyre::eyre!("failed to decode windows output :: {:?}", e)),
         }
     }
 
     #[cfg(not(target_os = "windows"))]
     pub fn decode_command_output(bytes: &[u8]) -> Result<String> {
         String::from_utf8(bytes.to_vec())
-            .context("failed to decode linux output")
+            .wrap_err("failed to decode linux output")
             .map(|s| fix_newlines(&s))
     }
     pub fn current_target() -> Result<RustTarget> {
         let out = std::process::Command::new("rustup")
             .arg("default")
             .output()
-            .context("running command to get current target")?;
+            .wrap_err("running command to get current target")?;
 
-        let text = decode_command_output(&out.stdout).context("bad encoding")?;
+        let text = decode_command_output(&out.stdout).wrap_err("bad encoding")?;
         let default_target = text
             .lines()
             .find(|line| line.contains("default"))
-            .context("no default target found")?;
+            .ok_or_else(|| eyre::eyre!("no default target found"))?;
         let (channel, target) = default_target
             .split_once('-')
-            .context("bad format for target")?;
-        let (target, _) = target.split_once(' ').context("bad format for target")?;
+            .ok_or_else(|| eyre::eyre!("bad format for target"))?;
+        let (target, _) = target
+            .split_once(' ')
+            .ok_or_else(|| eyre::eyre!("bad format for target"))?;
         let _channel: RustChannel = channel.parse()?;
         let target = target.parse()?;
         Ok(target)
@@ -487,7 +492,7 @@ pub mod metadata {
             .arg("branch")
             .arg("--show-current")
             .output()
-            .context("getting current branch")?;
+            .wrap_err("getting current branch")?;
 
         decode_command_output(&out.stdout)
     }
@@ -547,7 +552,7 @@ pub mod namespacing {
             .as_ref()
             .to_path_buf()
             .file_name()
-            .context("this is a directory")?
+            .ok_or_else(|| eyre::eyre!("this is a directory"))?
             .to_string_lossy()
             .to_string();
         Ok(format!(
@@ -561,13 +566,13 @@ pub mod namespacing {
     #[cfg(test)]
     mod tests {
         use super::*;
-        use anyhow::Result;
+        use eyre::Result;
 
         #[test]
         fn test_release_file_s3_path() -> Result<()> {
             const TAURI_CONF_JSON: &str = include_str!("../test_data/tauri.conf.json");
             let _tauri_conf_json: TauriConfJson =
-                serde_json::from_str(TAURI_CONF_JSON).context("bad format for tauri.conf.json")?;
+                serde_json::from_str(TAURI_CONF_JSON).wrap_err("bad format for tauri.conf.json")?;
             assert_eq!(
                 derive_release_file_s3_key("release", &RustTarget::Linux64),
                 "release/x86_64-unknown-linux-gnu/release-notes.json"
@@ -581,9 +586,9 @@ const DEFAULT_TAURI_CONF_JSON_PATH: &str = "./src-tauri/tauri.conf.json";
 /// should return "./src-tauri/target/release/bundle/"
 fn release_assets_path(target: &RustTarget) -> Result<PathBuf> {
     let base = PathBuf::from_str("./src-tauri")
-        .context("bad base path")?
+        .wrap_err("bad base path")?
         .join("target");
-    let for_target = base.join(serde_variant::to_variant_name(target).context("bad variant?")?);
+    let for_target = base.join(serde_variant::to_variant_name(target).wrap_err("bad variant?")?);
     let target_base = if for_target.exists() {
         for_target
     } else {
@@ -622,34 +627,35 @@ struct Args {
 #[tokio::main]
 async fn main() -> Result<()> {
     dotenv::dotenv().ok();
-    pretty_env_logger::try_init().ok();
+    color_eyre::install().ok();
+    tracing_subscriber::fmt::init();
     let args = Args::parse();
     let path = args.tauri_conf_json_path;
     // tauri.conf.json
-    let tauri_conf_json_path = PathBuf::from_str(&path).context("parsing tauri.conf.json path")?;
+    let tauri_conf_json_path = PathBuf::from_str(&path).wrap_err("parsing tauri.conf.json path")?;
     let mut tauri_conf_json: TauriConfJson = std::fs::read_to_string(&tauri_conf_json_path)
-        .context("reading tauri.conf.json")
-        .and_then(|content| serde_json::from_str(&content).context("parsing tauri.conf.json"))?;
+        .wrap_err("reading tauri.conf.json")
+        .and_then(|content| serde_json::from_str(&content).wrap_err("parsing tauri.conf.json"))?;
     // metadata
-    let branch = metadata::current_branch().context("getting branch name")?;
+    let branch = metadata::current_branch().wrap_err("getting branch name")?;
     let target = match args.target {
         Some(t) => t,
         None => {
             let target =
-                metadata::current_target().context("getting rust from environment target")?;
-            log::warn!("target not set, using {target:?}");
+                metadata::current_target().wrap_err("getting rust from environment target")?;
+            warn!("target not set, using {target:?}");
             target
         }
     };
     let release_platforms = target
         .to_release_platform()
-        .context("getting release platform from target")?;
+        .wrap_err("getting release platform from target")?;
     // s3 config
-    let s3_config = s3_handler::S3Config::try_from_env().context("getting s3 config from env")?;
+    let s3_config = s3_handler::S3Config::try_from_env().wrap_err("getting s3 config from env")?;
 
     match args.command {
         Command::Patch => {
-            log::info!("patching {}", tauri_conf_json_path.display());
+            info!("patching {}", tauri_conf_json_path.display());
             let new_identifier = format!(
                 "{}.{}",
                 tauri_conf_json.tauri.bundle.identifier,
@@ -667,18 +673,18 @@ async fn main() -> Result<()> {
         Command::Upload { release_dir } => {
             let release_dir = match release_dir {
                 Some(r) => r,
-                None => release_assets_path(&target).context("failed to derive a release path")?,
+                None => release_assets_path(&target).wrap_err("failed to derive a release path")?,
             };
 
             let files = walkdir::WalkDir::new(release_dir)
                 .into_iter()
                 .collect::<Result<Vec<_>, _>>()
-                .context("reading release dir entries")?
+                .wrap_err("reading release dir entries")?
                 .into_iter()
                 .filter(|e| e.path().is_file())
-                .map(|entry| entry.path().canonicalize().context("absolute path"))
+                .map(|entry| entry.path().canonicalize().wrap_err("absolute path"))
                 .collect::<Result<Vec<_>, _>>()
-                .context("getting absolute paths")?;
+                .wrap_err("getting absolute paths")?;
             let with_keys = files
                 .iter()
                 .map(|binary_file_path| {
@@ -691,43 +697,42 @@ async fn main() -> Result<()> {
                     .map(|key| (binary_file_path, key))
                 })
                 .collect::<Result<Vec<_>, _>>()
-                .context("extracting s3 keys")?;
-            log::info!("uploading:\n{:#?}", with_keys);
+                .wrap_err("extracting s3 keys")?;
+            info!("uploading:\n{:#?}", with_keys);
             let tasks = with_keys
                 .iter()
                 .map(|(path, key)| s3_config.upload_to_subdirectory(path, key))
                 .collect_vec();
             let urls = futures::future::try_join_all(tasks)
                 .await
-                .context("uploading all binary files")?;
-            log::info!(
-                "all files uploaded, cleaning up to prevent cache from growing out of control"
-            );
+                .wrap_err("uploading all binary files")?;
+            info!("all files uploaded, cleaning up to prevent cache from growing out of control");
             files
                 .into_iter()
                 .map(|path| {
-                    std::fs::remove_file(&path).context(format!("cleaning up [{}]", path.display()))
+                    std::fs::remove_file(&path)
+                        .wrap_err(format!("cleaning up [{}]", path.display()))
                 })
                 .collect::<Result<Vec<_>, _>>()
-                .context("cleaning up cache")?;
+                .wrap_err("cleaning up cache")?;
             let binary_url = urls
                 .iter()
                 .find(|url| url.ends_with(".zip"))
-                .context("getting zip file")?; // TODO: this is only for windows
+                .ok_or_else(|| eyre::eyre!("getting zip file"))?; // TODO: this is only for windows
             let signature = {
                 match urls
                     .iter()
                     .find(|url| url.ends_with(".zip.sig")) // TODO: this is only for windows
-                    .context("getting sig file")
+                    .ok_or_else(|| eyre::eyre!("getting sig file"))
                 {
                     Ok(signature_url) => reqwest::get(signature_url)
                         .await
-                        .context("downloading signature content")?
+                        .wrap_err("downloading signature content")?
                         .text()
                         .await
-                        .context("reading signature content")?,
+                        .wrap_err("reading signature content")?,
                     Err(e) => {
-                        log::error!("{e} :: failed to read signature file. in newer version of tauri this will result in an error. setting signature as \"\" (empty string)");
+                        error!("{e} :: failed to read signature file. in newer version of tauri this will result in an error. setting signature as \"\" (empty string)");
                         String::new()
                     }
                 }
@@ -756,29 +761,29 @@ async fn main() -> Result<()> {
                                 // .into_iter()
                                 // .collect(),
             };
-            log::info!(
+            info!(
                 " :: uploading release ::\n{}\n\n",
                 serde_json::to_string_pretty(&release).unwrap_or_default()
             );
             let release_local_path = {
                 let path = PathBuf::from_str("./")
-                    .context("this should work")?
+                    .wrap_err("this should work")?
                     .join("TEMP_RELEASE_FILE.json");
                 std::fs::write(
                     path.clone(),
-                    serde_json::to_string_pretty(&release).context("serializing release file")?,
+                    serde_json::to_string_pretty(&release).wrap_err("serializing release file")?,
                 )
-                .context("dumping release file to a file")?;
+                .wrap_err("dumping release file to a file")?;
                 path
             };
             let release_key = derive_release_file_s3_key(&branch, &target);
-            log::info!("binaries upload successfully, generating release_file");
+            info!("binaries upload successfully, generating release_file");
             let release_file_url = s3_config
                 .upload_to_subdirectory(release_local_path, &release_key)
                 .await
-                .context("uploading release file to s3")?;
+                .wrap_err("uploading release file to s3")?;
 
-            log::info!(" :: validating ::");
+            info!(" :: validating ::");
             if !tauri_conf_json
                 .tauri
                 .updater
@@ -786,20 +791,20 @@ async fn main() -> Result<()> {
                 .iter()
                 .any(|url| url == &release_file_url)
             {
-                log::error!("CRITICAL ERROR! UPDATE WILL NOT BE TRIGGERED!");
+                error!("CRITICAL ERROR! UPDATE WILL NOT BE TRIGGERED!");
                 bail!("configuration error - release file url is '{release_file_url}', but no such endpoint was found in tauri.conf.json file. entries found: {:?}", &tauri_conf_json.tauri.updater.endpoints)
             }
 
-            log::info!(" ::: uploaded to [{release_key}], update is LIVE :::");
+            info!(" ::: uploaded to [{release_key}], update is LIVE :::");
         }
     }
 
     serde_json::to_string_pretty(&tauri_conf_json)
-        .context("serializing tauri.conf.json content")
+        .wrap_err("serializing tauri.conf.json content")
         .and_then(|conf| {
-            log::info!("writing to {:?}:\n\n{}\n\n", tauri_conf_json_path, conf);
-            std::fs::write(tauri_conf_json_path, &conf).context("saving tauri.conf.json")
+            info!("writing to {:?}:\n\n{}\n\n", tauri_conf_json_path, conf);
+            std::fs::write(tauri_conf_json_path, &conf).wrap_err("saving tauri.conf.json")
         })?;
-    log::info!("DONE");
+    info!("DONE");
     Ok(())
 }

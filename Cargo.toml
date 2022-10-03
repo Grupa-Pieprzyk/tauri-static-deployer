@@ -6,23 +6,24 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.65"
 chrono = { version = "0.4.22", features = ["serde"] }
 clap = { version = "3.2.22", features = ["cargo", "derive", "clap_derive"] }
+color-eyre = "0.6.2"
 data-encoding = "2.3.2"
 derive_more = "0.99.17"
 dotenv = "0.15.0"
 encoding = "0.2.33"
 enum-iterator = "0.7.0"
+eyre = "0.6.8"
 futures = "0.3.24"
 itertools = "0.10.5"
-log = "0.4.17"
-pretty_env_logger = "0.4.0"
 reqwest = "0.11.12"
-rust-s3 = { version = "0.29.0", features = ["with-tokio", "never-encode-slash"] }
+rust-s3 = { version = "0.32.3", features = ["with-tokio"] }
 serde = { version = "1.0.145", features = ["derive"] }
 serde_json = "1.0.85"
 serde_variant = "0.1.1"
 time = { version = "0.3", features = ["parsing", "formatting"]}
 tokio = { version = "1.21.2", features = ["full"] }
+tracing = "0.1.36"
+tracing-subscriber = "0.3.15"
 walkdir = "2.3.2"
