@@ -47,11 +47,6 @@ use crate::{
     release_notes_file::RemoteRelease,
 };
 
-macro_rules! env_required {
-    ($env:literal) => {
-        std::env::var($env).wrap_err(format!("{} missing", $env))?
-    };
-}
 
 #[derive(
     Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash, IntoEnumIterator,
@@ -785,6 +780,17 @@ async fn main() -> Result<()> {
                 .await
                 .map_err(|e| eyre::eyre!("{e:?}"))
                 .wrap_err("uploading all binary files")?;
+
+            let binary_url = urls
+                .iter()
+                .find(|url| url.ends_with(".zip"))
+                .ok_or_else(|| eyre::eyre!("getting zip file"))?; // TODO: this is only for windows
+            let signature_file = files
+                    .iter()
+                    .find(|file| file.extension().map(|ext| ext == "sig").unwrap_or_default()) // TODO: this is only for windows
+                    .ok_or_else(|| eyre::eyre!("getting sig file"))?;
+            let signature = tokio::fs::read_to_string(signature_file).await.wrap_err("reading signature from found file")?;
+
             info!("all files uploaded");
             if cleanup {
                 warn!("cleaning up to prevent cache from growing out of control");
@@ -797,30 +803,6 @@ async fn main() -> Result<()> {
                     .collect::<Result<Vec<_>, _>>()
                     .wrap_err("cleaning up cache")?;
             }
-
-            let binary_url = urls
-                .iter()
-                .find(|url| url.ends_with(".zip"))
-                .ok_or_else(|| eyre::eyre!("getting zip file"))?; // TODO: this is only for windows
-            let signature = {
-                match urls
-                    .iter()
-                    .find(|url| url.ends_with(".zip.sig")) // TODO: this is only for windows
-                    .ok_or_else(|| eyre::eyre!("getting sig file"))
-                {
-                    Ok(signature_url) => reqwest::get(signature_url)
-                        .await
-                        .wrap_err("downloading signature content")?
-                        .text()
-                        .await
-                        .wrap_err("reading signature content")?,
-                    Err(e) => {
-                        error!("{e} :: failed to read signature file. in newer version of tauri this will result in an error. setting signature as \"\" (empty string)");
-                        String::new()
-                    }
-                }
-            };
-
             let release = release_notes_file::ReleaseNotes {
                 notes: format!(
                     "new {} release: {}",
