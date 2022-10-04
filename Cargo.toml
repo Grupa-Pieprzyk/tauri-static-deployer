@@ -29,3 +29,6 @@ tracing = "0.1.36"
 tracing-subscriber = "0.3.15"
 uuid = { version = "1.1.2", features = ["v4"] }
 walkdir = "2.3.2"
+# standard crate data is left out
+[dev-dependencies]
+pretty_assertions = "1"

@@ -243,6 +243,7 @@ mod release_notes_file {
     #[cfg(test)]
     mod tests {
         use super::*;
+        use pretty_assertions::assert_eq;
         #[test]
         fn test_generated_release_works() -> eyre::Result<()> {
             let example = ReleaseNotes {
@@ -542,15 +543,17 @@ pub mod namespacing {
 
     #[instrument(ret)]
     pub fn derive_release_file_s3_url(
-        _tauri_conf_json: &TauriConfJson,
         branch_name: &str,
         target: &RustTarget,
         s3_config: &S3Config,
     ) -> String {
-        format!(
-            "{}/{}",
-            s3_handler::handle_s3::s3_url_prefix(s3_config),
-            derive_release_file_s3_key(branch_name, target)
+        use s3_handler::handle_s3::{
+            s3_path_with_subdirectory,
+            s3_url,
+        };
+        s3_url(
+            s3_config,
+            &s3_path_with_subdirectory(s3_config, &derive_release_file_s3_key(branch_name, target)),
         )
     }
 
@@ -581,6 +584,7 @@ pub mod namespacing {
     mod tests {
         use super::*;
         use eyre::Result;
+        use s3_helpers::BucketConfig;
 
         #[test]
         fn test_release_file_s3_path() -> Result<()> {
@@ -590,6 +594,26 @@ pub mod namespacing {
             assert_eq!(
                 derive_release_file_s3_key("release", &RustTarget::Linux64),
                 "release/x86_64-unknown-linux-gnu/release-notes.json"
+            );
+            Ok(())
+        }
+        #[test]
+        fn test_release_file_s3_url() -> Result<()> {
+            assert_eq!(
+                derive_release_file_s3_url(
+                    "release", 
+                    &RustTarget::Win64, 
+                    &S3Config { 
+                        bucket_subdirectory: "test-bucket-subdirectory".to_string(), 
+                        bucket_config: BucketConfig { 
+                            name: "test-bucket-name".to_string(), 
+                            region_name: "us-east-1".to_string(),
+                        }, 
+                        account_id: "it-doesnt-matter".to_string(), 
+                        bucket: None, 
+                        actual_domain: "https://test-bucket-name.blazingsoft.pl".to_string(),
+                    }),
+                "https://test-bucket-name.blazingsoft.pl/test-bucket-subdirectory/release/x86_64-pc-windows-msvc/release-notes.json"
             );
             Ok(())
         }
@@ -708,7 +732,6 @@ async fn main() -> Result<()> {
             );
             tauri_conf_json
                 .with_update_endpoint(namespacing::derive_release_file_s3_url(
-                    &tauri_conf_json,
                     &branch,
                     &target,
                     &s3_config,
