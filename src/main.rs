@@ -783,8 +783,13 @@ async fn main() -> Result<()> {
 
             let binary_url = urls
                 .iter()
+                .sorted()
+                .rev()
+                .collect_vec()
+                .into_iter()
                 .find(|url| url.ends_with(".zip"))
                 .ok_or_else(|| eyre::eyre!("getting zip file"))?; // TODO: this is only for windows
+            info!(binary_url);
             let signature_file = files
                     .iter()
                     .find(|file| file.extension().map(|ext| ext == "sig").unwrap_or_default()) // TODO: this is only for windows
@@ -798,7 +803,7 @@ async fn main() -> Result<()> {
                     .into_iter()
                     .map(|path| {
                         std::fs::remove_file(&path)
-                            .wrap_err(format!("cleaning up [{}]", path.display()))
+                            .wrap_err_with(|| format!("cleaning up [{}]", path.display()))
                     })
                     .collect::<Result<Vec<_>, _>>()
                     .wrap_err("cleaning up cache")?;
