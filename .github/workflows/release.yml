@@ -34,6 +34,12 @@ jobs:
           ssh-private-key: |
             ${{ secrets.GRUPA_PIEPRZYK_S3_HELPERS_DEPLOY_KEY}}
 
+      - name: Install latest nightly
+        uses: actions-rs/toolchain@v1
+        with:
+            toolchain: stable
+            # override: true
+            # components: rustfmt, clippy      
       - name: build rust
         run: cargo build --release
       - uses: taiki-e/upload-rust-binary-action@v1
