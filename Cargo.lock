@@ -1342,7 +1342,7 @@ checksum = "4501abdff3ae82a1c1b477a17252eb69cee9e66eb915c1abaa4f44d873df9f09"
 [[package]]
 name = "s3_helpers"
 version = "0.3.2"
-source = "git+https://github.com/Grupa-Pieprzyk/s3-helpers#dd167c1273aec92b0ea601d79246decd6b0377d3"
+source = "git+ssh://git@github.com/Grupa-Pieprzyk/s3-helpers.git#dd167c1273aec92b0ea601d79246decd6b0377d3"
 dependencies = [
  "anyhow",
  "derive_more",

@@ -58,6 +58,8 @@ pub enum RustTarget {
     Win64,
     #[serde(rename = "x86_64-unknown-linux-gnu")]
     Linux64,
+    #[serde(rename = "x86_64-apple-darwin")]
+    MacOsX86_64,
 }
 
 impl RustTarget {
@@ -75,6 +77,9 @@ impl RustTarget {
                 release_notes_file::ReleasePlatform::V1(ReleasePlatformV1::Linux),
                 release_notes_file::ReleasePlatform::V2(ReleasePlatformV2::Linux),
             ]),
+            RustTarget::MacOsX86_64 => Ok(vec![
+                release_notes_file::ReleasePlatform::V2(ReleasePlatformV2::MacOsX86_64),
+            ])
         }
     }
 }
@@ -138,6 +143,8 @@ mod release_notes_file {
         Win32,
         #[serde(rename = "linux-x86_64")]
         Linux,
+        #[serde(rename = "darwin-x86_64")]
+        MacOsX86_64
     }
 
     #[derive(
@@ -158,34 +165,34 @@ mod release_notes_file {
         V2(ReleasePlatformV2),
     }
 
-    impl ReleasePlatform {
-        pub fn to_installer_str(&self) -> String {
-            // match self {
-            //     ReleasePlatform::Win64 => "x64",
-            //     ReleasePlatform::Win32 => "x86",
-            //     ReleasePlatform::Linux => unimplemented!("this platform is not supported"),
-            // }
-            // .to_owned()
+    // impl ReleasePlatform {
+    //     pub fn to_installer_str(&self) -> String {
+    //         // match self {
+    //         //     ReleasePlatform::Win64 => "x64",
+    //         //     ReleasePlatform::Win32 => "x86",
+    //         //     ReleasePlatform::Linux => unimplemented!("this platform is not supported"),
+    //         // }
+    //         // .to_owned()
 
-            match self {
-                ReleasePlatform::V1(r) => match r {
-                    ReleasePlatformV1::Win64 => "x64",
-                    ReleasePlatformV1::Win32 => "x86",
-                    ReleasePlatformV1::Linux => {
-                        unimplemented!("linux platform is not supported at the moment")
-                    }
-                },
-                ReleasePlatform::V2(r) => match r {
-                    ReleasePlatformV2::Win64 => "x64",
-                    ReleasePlatformV2::Win32 => "x86",
-                    ReleasePlatformV2::Linux => {
-                        unimplemented!("linux platform is not supported at the moment")
-                    }
-                },
-            }
-            .to_owned()
-        }
-    }
+    //         match self {
+    //             ReleasePlatform::V1(r) => match r {
+    //                 ReleasePlatformV1::Win64 => "x64",
+    //                 ReleasePlatformV1::Win32 => "x86",
+    //                 ReleasePlatformV1::Linux => {
+    //                     unimplemented!("linux platform is not supported at the moment")
+    //                 }
+    //             },
+    //             ReleasePlatform::V2(r) => match r {
+    //                 ReleasePlatformV2::Win64 => "x64",
+    //                 ReleasePlatformV2::Win32 => "x86",
+    //                 ReleasePlatformV2::Linux => {
+    //                     unimplemented!("linux platform is not supported at the moment")
+    //                 }
+    //             },
+    //         }
+    //         .to_owned()
+    //     }
+    // }
     #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct RemoteRelease {
         pub url: String,
