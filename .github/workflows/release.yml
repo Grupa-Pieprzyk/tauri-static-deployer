@@ -20,6 +20,11 @@ jobs:
             archive: zip
     steps:
       - uses: actions/checkout@master
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: |
+            ${{ secrets.GRUPA_PIEPRZYK_S3_HELPERS_DEPLOY_KEY}}
       - name: Compile and release
         uses: rust-build/rust-build.action@v1.4.0
         env:
