@@ -61,6 +61,8 @@ pub enum RustTarget {
     Linux64,
     #[serde(rename = "x86_64-apple-darwin")]
     MacOsX86_64,
+    #[serde(rename = "aarch64-apple-darwin")]
+    MacOsAarch64,
 }
 
 impl RustTarget {
@@ -80,7 +82,12 @@ impl RustTarget {
             ]),
             RustTarget::MacOsX86_64 => Ok(vec![
                 release_notes_file::ReleasePlatform::V2(ReleasePlatformV2::MacOsX86_64),
-            ])
+            ]),
+            RustTarget::MacOsAarch64 => Ok(
+                vec![
+                    release_notes_file::ReleasePlatform::V2(ReleasePlatformV2::MacOsAarch64),
+                ]
+            ),
         }
     }
 }
@@ -145,7 +152,9 @@ mod release_notes_file {
         #[serde(rename = "linux-x86_64")]
         Linux,
         #[serde(rename = "darwin-x86_64")]
-        MacOsX86_64
+        MacOsX86_64,
+        #[serde(rename = "darwin-aarch64")]
+        MacOsAarch64
     }
 
     #[derive(
