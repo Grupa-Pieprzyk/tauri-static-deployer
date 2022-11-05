@@ -8,6 +8,7 @@ use eyre::{
     Result,
     WrapErr,
 };
+use futures::{StreamExt, TryStreamExt};
 use itertools::Itertools;
 use release_notes_file::{
     ReleasePlatformV1,
@@ -783,7 +784,9 @@ async fn main() -> Result<()> {
                     )
                 })
                 .collect_vec();
-            let urls = futures::future::try_join_all(tasks)
+            let urls: Vec<_> = futures::stream::iter(tasks)
+                .buffer_unordered(1) // one at the time
+                .try_collect()
                 .await
                 .map_err(|e| eyre::eyre!("{e:?}"))
                 .wrap_err("uploading all binary files")?;
