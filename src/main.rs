@@ -749,12 +749,34 @@ async fn main() -> Result<()> {
                 None => release_assets_path(&target).wrap_err("failed to derive a release path")?,
             };
 
-            let files = walkdir::WalkDir::new(release_dir)
+            const EXTENSIONS_WHITELIST: &[&str] = &[
+                // macos
+                ".dmg",
+                // macos & linux
+                ".tar.gz",
+                // linux
+                ".deb",
+                ".AppImage",
+                // windows
+                ".msi",
+                ".zip",
+                // all
+                ".sig"
+
+            ];
+            let files = walkdir::WalkDir::new(&release_dir)
                 .into_iter()
                 .collect::<Result<Vec<_>, _>>()
                 .wrap_err("reading release dir entries")?
                 .into_iter()
-                .filter(|e| e.path().is_file())
+                .filter(|e| {
+                    e.path()
+                        .to_str()
+                        .map(
+                            |name| EXTENSIONS_WHITELIST.iter()
+                                .any(|ext| name.ends_with(ext)))
+                        .unwrap_or_default()
+                })
                 .map(|entry| entry.path().canonicalize().wrap_err("absolute path"))
                 .collect::<Result<Vec<_>, _>>()
                 .wrap_err("getting absolute paths")?;
@@ -806,14 +828,7 @@ async fn main() -> Result<()> {
             info!("all files uploaded");
             if cleanup {
                 warn!("cleaning up to prevent cache from growing out of control");
-                files
-                    .into_iter()
-                    .map(|path| {
-                        std::fs::remove_file(&path)
-                            .wrap_err_with(|| format!("cleaning up [{}]", path.display()))
-                    })
-                    .collect::<Result<Vec<_>, _>>()
-                    .wrap_err("cleaning up cache")?;
+                std::fs::remove_dir_all(&release_dir).wrap_err("cleaning up cache failed")?;
             }
             let release = release_notes_file::ReleaseNotes {
                 notes: format!(
