@@ -628,13 +628,14 @@ fn release_assets_path(target: &RustTarget) -> Result<PathBuf> {
     let base = PathBuf::from_str("./src-tauri")
         .wrap_err("bad base path")?
         .join("target");
-    let for_target = base.join(serde_variant::to_variant_name(target).wrap_err("bad variant?")?);
-    let target_base = if for_target.exists() {
-        for_target
-    } else {
-        base.join("release")
-    };
-    Ok(target_base.join("bundle"))
+    // let for_target = base.join(serde_variant::to_variant_name(target).wrap_err("bad variant?")?);
+
+    let release_bundle = |p: PathBuf| p.join("release").join("bundle");
+    let candidates = [
+        release_bundle(base.join(serde_variant::to_variant_name(target).wrap_err("bad variant?")?)),
+        release_bundle(base),
+    ];
+    candidates.iter().find(|p| p.exists()).ok_or_else(|| eyre::eyre!("no candidate for release target directory, tried: {candidates:?}")).cloned()
 }
 
 #[derive(Subcommand, Debug)]
